@@ -52,7 +52,10 @@ module pr(
     reg signed [63:0] k4_x, k4_y, k4_z, k4_w;
 
     // --- Temporary registers for serial FSM ---
-    reg signed [63:0] xt, yt, zt, wt; // Inputs for derivative calc
+    reg signed [63:0] xt, yt, zt, wt; /* by using these temporary variables we getting the slope at diiferent future points 
+                                        like starting from initial(k1) and go mid point arround as next point of slope then 
+                                        now mark that point (k2) as starting and so on*/
+    
     reg signed [63:0] dx, dy, dz, dw; // Derivative results
     reg signed [63:0] h_dx, h_dy, h_dz, h_dw; // h_step * derivative
     
@@ -61,25 +64,30 @@ module pr(
     reg signed [63:0] temp_a, temp_b, temp_c, temp_d, temp_e, temp_ky;
     reg signed [63:0] temp_f, temp_g, temp_h, temp_m, temp_n;
     
-    // --- FSM State Registers ---
+    // --- FSM State Registers ---    
     reg [2:0] k_stage; // 0=Idle, 1=k1, 2=k2, 3=k3, 4=k4, 5=Update, 6=Extract
     reg [4:0] op_stage; // 0-23: Sub-stages for serial calculation
 
     // --- LFSR ---
+    // Here we shift the bits and put new bit( coming from xor) at 0th place
     reg [63:0] lfsr;
     always @(posedge clk or posedge reset) begin
         if (reset) lfsr <= 64'hA5A5A5A5A5A5A5A5;
         else lfsr <= {lfsr[62:0], lfsr[63]^lfsr[62]^lfsr[60]^lfsr[59]};
     end
+     // in this we do not want all lfsr bits so we take only 16 bits as seeding
     wire signed [63:0] noise = {48'd0, lfsr[15:0]};
 
     // --- Reusable Hardware Functions (unchanged) ---
+    /*In fpga, hardware does not know the exact position of decimal point
+     so we use this*/
     function signed [63:0] mult_q58;
         input signed [63:0] a, b;
         reg signed [127:0] temp;
         begin
             temp = a * b;
-            mult_q58 = temp[121:SCALE_BITS];
+            mult_q58 = temp[121:SCALE_BITS]; /*dividing by 2^58 bits as it is 
+                                            scaled to 2^116 during multiplication */
         end
     endfunction
 
@@ -89,7 +97,8 @@ module pr(
             div_by_6 = mult_q58(v, ONE_SIXTH);
         end
     endfunction
-
+/* It is used to create NON-LINEARITY in system to make system chaotic
+    it clamps the output so that it does not grow much large and small  */
     function signed [63:0] approx_tanh_r;
         input signed [63:0] i;
         reg signed [63:0] ri;
@@ -115,7 +124,11 @@ module pr(
             W = alpha - mult_q58(beta, abs_phi);
         end
     endfunction
-
+ /*||Note||
+    W(phi) modulates neuron y using the memory state (w):
+    when phi increases, W(phi) decreases. Neuron y drives the others
+    and w feeds back into y via (dw = m*y - n*w), creating nonlinear memory 
+    influence.*/
     // ========== RE-ARCHITECTED SERIAL FSM ==========
     always @(posedge clk or posedge reset) begin
         if(reset) begin
@@ -387,4 +400,5 @@ module pr(
         end
     end
     
+
 endmodule
