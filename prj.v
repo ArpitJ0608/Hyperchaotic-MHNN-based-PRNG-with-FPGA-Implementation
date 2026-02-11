@@ -5,10 +5,7 @@ module pr(
     input  wire reset,
     input  wire start,
     output reg [6:0]  debiased_count,    
-    // --- NEW ---
-    // Output for the "Random Blink" Aliveness Check LED
     output reg        o_random_led
-    // --- END NEW ---
 );
     reg [87:0] raw_bits;
     reg [43:0] debiased_bits;
@@ -274,7 +271,6 @@ module pr(
 
 
     // ========== BIT EXTRACTION (Pipelined) ==========
-    // (This logic is unchanged)
     reg signed [127:0] scaled_x_128, scaled_y_128, scaled_z_128, scaled_w_128;
     reg signed [53:0] int_x, int_y, int_z, int_w;
     reg [87:0] internal_raw_bits;
@@ -402,3 +398,4 @@ module pr(
     
 
 endmodule
+
