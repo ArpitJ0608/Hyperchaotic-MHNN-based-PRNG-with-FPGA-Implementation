@@ -3,8 +3,6 @@
 module test_prng();
 
     parameter CLK_PERIOD = 10;
-    // Set this to a low number (e.g., 100) for fast testing
-    // Set to 1200000 for the full run
     parameter TARGET_ITERATIONS = 1200000;  
     parameter string OUTPUT_PATH = "C:/Users/dell/OneDrive/Documents/prng_output.txt";
     
@@ -23,8 +21,7 @@ module test_prng();
     string bits_line;
     int ones_count;
     
-    // Instantiate the Unit Under Test (UUT)
-    pr uut (
+    prj uut (
         .clk(clk),  
         .reset(reset),  
         .start(start),
@@ -54,24 +51,19 @@ module test_prng();
         
         $display("File opened successfully!\n");
         
-        // Release reset
         #100 reset = 1'b0;
         $display("[%0t] Reset released", $time);
         
-        // Start RK4 execution
         #50 start = 1'b1;
         $display("[%0t] Start asserted\n", $time);
         
-        // Main loop - keep checking for bits_ready pulse
+        // Main loop
         while (iteration_count < TARGET_ITERATIONS) begin
             @(posedge clk);
             
-            // bits_ready is a PULSE signal - only HIGH for 1 clock cycle
             if (bits_ready) begin
                 iteration_count++;
                 
-                // Decide which bits to use based on debiased_count
-                // This logic matches the Python fallback
                 if (debiased_count < 64) begin
                     // Use RAW bits (88 bits)
                     bits_line = "";
@@ -82,7 +74,6 @@ module test_prng();
                         if (raw_bits[i]) ones_count++;
                     end
                     
-                    // Show first 5 iterations with statistics
                     if (iteration_count <= 5) begin
                         $display("Iteration %0d: RAW (debiased_count=%0d < 64)", 
                                  iteration_count, debiased_count);
@@ -90,7 +81,7 @@ module test_prng();
                     end
                     
                 end else begin
-                    // Use DEBIASED bits (variable length)
+                    // Use DEBIASED bits 
                     bits_line = "";
                     ones_count = 0;
                     
@@ -99,7 +90,6 @@ module test_prng();
                         if (debiased_bits[i]) ones_count++;
                     end
                     
-                    // Show first 5 iterations with statistics
                     if (iteration_count <= 5) begin
                         $display("Iteration %0d: DEBIASED (count=%0d bits)", 
                                  iteration_count, debiased_count);
@@ -107,10 +97,8 @@ module test_prng();
                     end
                 end
                 
-                // Write to file
                 $fwrite(output_file, "%s\n", bits_line);
                 
-                // Progress update
                 if (iteration_count % 20000 == 0) begin // Changed to 20k for less spam
                     $display("[%0t] Progress: %0d iterations", $time, iteration_count);
                 end
@@ -129,7 +117,6 @@ module test_prng();
         $finish;
     end
     
-    // Timeout watchdog (e.g., 5 minutes for a long run)
     initial begin
         #300_000ms; // 300 seconds = 5 minutes
         $display("\nTIMEOUT at %0d iterations (5 minutes elapsed)", iteration_count);
