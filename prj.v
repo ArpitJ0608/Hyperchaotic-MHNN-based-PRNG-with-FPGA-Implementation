@@ -1,5 +1,4 @@
 `timescale 1ns / 1ps
-
 module pr(
     input  wire clk,
     input  wire reset,
@@ -53,7 +52,7 @@ module pr(
                                         like starting from initial(k1) and go mid point arround as next point of slope then 
                                         now mark that point (k2) as starting and so on*/
     
-    reg signed [63:0] dx, dy, dz, dw; // Derivative results
+    reg signed [63:0] dx, dy, dz, dw; 
     reg signed [63:0] h_dx, h_dy, h_dz, h_dw; // h_step * derivative
     
     // --- Temporary registers for serial multiplication ---
@@ -103,12 +102,8 @@ module pr(
             ri = mult_q58(r, i);
             if (ri >= d) approx_tanh_r = alpha;
             else if (ri <= -d) approx_tanh_r = -alpha;
-
-            // --- FIX 3 ---
-            // Use Arithmetic Shift (>>) for signed numbers, not (>>>)
             else if (ri >= 0) approx_tanh_r = mult_q58(ri, (alpha - (ri >> 2)));
             else approx_tanh_r = mult_q58(ri, (alpha + (ri >> 2)));
-            // --- END FIX 3 ---
             
         end
     endfunction
@@ -126,16 +121,14 @@ module pr(
     when phi increases, W(phi) decreases. Neuron y drives the others
     and w feeds back into y via (dw = m*y - n*w), creating nonlinear memory 
     influence.*/
-    // ========== RE-ARCHITECTED SERIAL FSM ==========
+    // ==========SERIAL FSM ==========
     always @(posedge clk or posedge reset) begin
         if(reset) begin
-            // --- FIX 1 ---
             // Use ADD for seeding, not XOR
             x <= BASE_X + {48'd0, lfsr[15:0]};
             y <= BASE_Y + {48'd0, lfsr[31:16]};
             z <= BASE_Z + {48'd0, lfsr[47:32]};
             w <= BASE_W + {48'd0, lfsr[63:48]};
-            // --- END FIX 1 ---
             
             // Reset all state registers
             k_stage <= 0;
@@ -208,13 +201,10 @@ module pr(
                 
                 // --- STAGE 5: Final RK4 Update ---
                 5: begin
-                    // --- FIX 2 ---
-                    // Use ADD for noise, not XOR
                     x <= x + div_by_6(k1_x + (k2_x << 1) + (k3_x << 1) + k4_x) + noise;
                     y <= y + div_by_6(k1_y + (k2_y << 1) + (k3_y << 1) + k4_y) + {noise[62:0], noise[63]};
                     z <= z + div_by_6(k1_z + (k2_z << 1) + (k3_z << 1) + k4_z) + {noise[61:0], noise[63:62]};
                     w <= w + div_by_6(k1_w + (k2_w << 1) + (k3_w << 1) + k4_w) + {noise[60:0], noise[63:61]};
-                    // --- END FIX 2 ---
                     
                     k_stage <= 6; // Move to Bit Extraction
                 end
@@ -222,7 +212,7 @@ module pr(
                 // --- STAGE 6: Bit Extraction ---
                 // This stage is pipelined with the start of the next k1 calc
                 6: begin
-                    k_stage <= 0; // Go back to IDLE to start next iteration
+                    k_stage <= 0; 
                 end
 
                 default: k_stage <= 0;
@@ -247,8 +237,8 @@ module pr(
                     10: temp_f <= mult_q58(f, tanh_x_pipe);
                     11: temp_g <= mult_q58(g, tanh_y_pipe);
                     12: temp_h <= mult_q58(h, tanh_z_pipe);
-                    13: temp_m <= mult_q58(m, yt); // Note: uses yt
-                    14: temp_n <= mult_q58(n, wt); // Note: uses wt
+                    13: temp_m <= mult_q58(m, yt); 
+                    14: temp_n <= mult_q58(n, wt); 
                     // --- Derivative Calculations ---
                     15: dx <= -xt + temp_a + temp_b - temp_c;
                     16: dy <= -yt - temp_d + temp_e + temp_ky;
@@ -263,11 +253,11 @@ module pr(
                     23: op_stage <= 0; // Will be incremented to 0 by default
                     default: op_stage <= 0;
                 endcase
-                op_stage <= op_stage + 1; // Increment sub-stage
+                op_stage <= op_stage + 1; 
             end
             
-        end // if(start)
-    end // always
+        end 
+    end 
 
 
     // ========== BIT EXTRACTION (Pipelined) ==========
@@ -342,12 +332,11 @@ module pr(
             
             raw_bits <= internal_raw_bits;
             raw_count <= 88;
-            bits_extracted <= 1; // Signal the debiaser
+            bits_extracted <= 1; 
         end else begin
             bits_extracted <= 0;
         end
     end
-
 
     // ========== VON NEUMANN DEBIASING (Pipelined) ==========
     // This logic runs in parallel with k_stage 0
@@ -360,11 +349,7 @@ module pr(
             debiased_count <= 0;
             debiased_bits <= 0;
             bits_ready <= 0;
-            
-            // --- NEW ---
             o_random_led <= 0; // Reset the LED
-            // --- END NEW ---
-            
         end 
         // When the 'bits_extracted' pulse arrives...
         else if (bits_extracted) begin 
@@ -385,17 +370,12 @@ module pr(
             debiased_bits <= internal_debiased_bits[43:0];
             bits_ready <= 1; // Signal testbench that a result is ready
             
-            // --- NEW ---
             // Update the LED with the XOR sum of all new raw bits
             // This will make it flicker randomly if the PRNG is working
             o_random_led <= ^internal_raw_bits;
-            // --- END NEW ---
             
         end else begin
             bits_ready <= 0;
         end
     end
-    
-
 endmodule
-
